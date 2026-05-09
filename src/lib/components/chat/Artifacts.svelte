@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
 	import { onMount, getContext, createEventDispatcher } from 'svelte';
 	const i18n = getContext('i18n');
 	const dispatch = createEventDispatcher();
@@ -7,18 +6,19 @@
 	import {
 		artifactCode,
 		chatId,
+		config,
 		settings,
 		showArtifacts,
 		showControls,
 		artifactContents
 	} from '$lib/stores';
-	import { copyToClipboard, createMessagesList } from '$lib/utils';
+	import { applyArtifactContentSecurityPolicy } from '$lib/utils/artifacts';
+	import { copyToClipboard } from '$lib/utils';
 
 	import XMark from '../icons/XMark.svelte';
 	import ArrowsPointingOut from '../icons/ArrowsPointingOut.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 	import SvgPanZoom from '../common/SVGPanZoom.svelte';
-	import ArrowLeft from '../icons/ArrowLeft.svelte';
 	import Download from '../icons/Download.svelte';
 
 	export let overlay = false;
@@ -28,6 +28,16 @@
 
 	let copied = false;
 	let iframeElement: HTMLIFrameElement;
+
+	$: selectedContent = contents[selectedContentIdx] ?? null;
+	$: artifactContentSecurityPolicy = $config?.ui?.artifacts?.content_security_policy ?? '';
+	$: artifactSrcdoc =
+		selectedContent?.type === 'iframe'
+			? applyArtifactContentSecurityPolicy(
+					selectedContent.content,
+					artifactContentSecurityPolicy
+				)
+			: '';
 
 	function navigateContent(direction: 'prev' | 'next') {
 		selectedContentIdx =
@@ -132,6 +142,7 @@
 					<div class="flex items-center space-x-2">
 						<div class="flex items-center gap-0.5 self-center min-w-fit" dir="ltr">
 							<button
+								aria-label={$i18n.t('Previous artifact')}
 								class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition disabled:cursor-not-allowed"
 								on:click={() => navigateContent('prev')}
 								disabled={contents.length <= 1}
@@ -160,6 +171,7 @@
 							</div>
 
 							<button
+								aria-label={$i18n.t('Next artifact')}
 								class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition disabled:cursor-not-allowed"
 								on:click={() => navigateContent('next')}
 								disabled={contents.length <= 1}
@@ -238,11 +250,11 @@
 			<div class=" h-full flex flex-col">
 				{#if contents.length > 0}
 					<div class="max-w-full w-full h-full">
-						{#if contents[selectedContentIdx].type === 'iframe'}
+						{#if selectedContent?.type === 'iframe'}
 							<iframe
 								bind:this={iframeElement}
 								title="Content"
-								srcdoc={contents[selectedContentIdx].content}
+								srcdoc={artifactSrcdoc}
 								class="w-full border-0 h-full rounded-none"
 								sandbox="allow-scripts allow-downloads{($settings?.iframeSandboxAllowForms ?? false)
 									? ' allow-forms'
@@ -251,10 +263,10 @@
 									: ''}"
 								on:load={iframeLoadHandler}
 							></iframe>
-						{:else if contents[selectedContentIdx].type === 'svg'}
+						{:else if selectedContent?.type === 'svg'}
 							<SvgPanZoom
 								className=" w-full h-full max-h-full overflow-hidden"
-								svg={contents[selectedContentIdx].content}
+								svg={selectedContent.content}
 							/>
 						{/if}
 					</div>
